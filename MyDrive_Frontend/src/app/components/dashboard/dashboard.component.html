@@ -1,0 +1,348 @@
+<div class="dashboard-container">
+  <nav class="navbar">
+    <div class="navbar-brand">MyDrive</div>
+    <div class="navbar-menu">
+      <button class="menu-item" [class.active]="viewMode === 'myFiles'" (click)="switchView('myFiles')">My
+        Files</button>
+      <button class="menu-item" [class.active]="viewMode === 'sharedWithMe'" (click)="switchView('sharedWithMe')">Shared
+        with me</button>
+      <button class="menu-item" [class.active]="viewMode === 'sharedByMe'" (click)="switchView('sharedByMe')">Shared by
+        me</button>
+    </div>
+    <div class="navbar-user">
+      <span>{{ currentUser?.username }}</span>
+      <button class="btn btn-outline" (click)="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <div class="dashboard-content">
+    <!-- Storage info -->
+    <div class="storage-info">
+      <div class="storage-text">
+        <strong>Storage Used:</strong> {{ formatFileSize(currentUser?.storageUsed || 0) }}
+        of {{ formatFileSize(currentUser?.storageLimit || 0) }}
+      </div>
+      <div class="storage-bar">
+        <div class="storage-progress"
+          [style.width]="(currentUser?.storageUsed / (currentUser?.storageLimit || 1) * 100) + '%'">
+        </div>
+      </div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="actions" *ngIf="viewMode === 'myFiles'">
+      <button class="action-btn upload-btn" (click)="openUploadDialog()">
+        <span class="material-icons">upload</span>
+        Upload
+      </button>
+      <button class="action-btn folder-btn" (click)="openCreateFolderDialog()">
+        <span class="material-icons">create_new_folder</span>
+        New Folder
+      </button>
+    </div>
+
+    <!-- Breadcrumbs -->
+    <div class="breadcrumbs" *ngIf="viewMode === 'myFiles'">
+      <span *ngFor="let crumb of breadcrumbs; let last = last" class="breadcrumb-item">
+        <a *ngIf="!last" (click)="navigateToDirectory(crumb.id)">{{ crumb.name }}</a>
+        <span *ngIf="last">{{ crumb.name }}</span>
+        <span *ngIf="!last" class="breadcrumb-separator">/</span>
+      </span>
+    </div>
+
+    <!-- Loading indicator -->
+    <div class="loading-indicator" *ngIf="isLoading">
+      <div class="spinner"></div>
+      <span>Loading...</span>
+    </div>
+
+    <!-- My Files View -->
+    <div class="file-browser" *ngIf="viewMode === 'myFiles' && !isLoading">
+      <!-- Directories -->
+      <div class="items-container">
+        <div class="directory-item" *ngFor="let directory of directoryContents.subdirectories">
+          <div class="item-icon">
+            <span class="material-icons">folder</span>
+          </div>
+          <div class="item-details" (click)="navigateToDirectory(directory.id)">
+            <div class="item-name">{{ directory.name }}</div>
+            <div class="item-meta">Folder</div>
+          </div>
+          <div class="item-actions">
+            <button class="icon-btn" (click)="openShareDialog(directory, true)" title="Share">
+              <span class="material-icons">share</span>
+            </button>
+            <button class="icon-btn" (click)="deleteItem(directory, true)" title="Delete">
+              <span class="material-icons">delete</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Files -->
+        <div class="file-item" *ngFor="let file of directoryContents.files">
+          <div class="item-icon">
+            <span class="material-icons">{{ getFileTypeIcon(file.type) }}</span>
+          </div>
+          <div class="item-details">
+            <div class="item-name">{{ file.name }}</div>
+            <div class="item-meta">{{ formatFileSize(file.size) }} • {{ file.uploadDate | date }}</div>
+          </div>
+          <div class="item-actions">
+            <button class="icon-btn" (click)="downloadFile(file)" title="Download">
+              <span class="material-icons">download</span>
+            </button>
+            <button class="icon-btn" (click)="openShareDialog(file, false)" title="Share">
+              <span class="material-icons">share</span>
+            </button>
+            <button class="icon-btn" (click)="deleteItem(file, false)" title="Delete">
+              <span class="material-icons">delete</span>
+            </button>
+            <button class="icon-btn" (click)="viewFileDetails(file)" title="Xem chi tiết">
+              <span class="material-icons">visibility</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div class="empty-state"
+          *ngIf="directoryContents.subdirectories.length === 0 && directoryContents.files.length === 0">
+          <div class="empty-icon">
+            <span class="material-icons">folder_off</span>
+          </div>
+          <div class="empty-text">
+            <div class="empty-title">No files or folders</div>
+            <div class="empty-description">Upload files or create folders to get started</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shared With Me View -->
+    <div class="shared-browser" *ngIf="viewMode === 'sharedWithMe' && !isLoading">
+      <ng-container *ngIf="!isViewingSharedDirectory">
+        <h2>Files & Folders Shared With Me</h2>
+        <div class="items-container">
+          <div class="shared-item" *ngFor="let item of sharedWithMe">
+            <div class="item-icon">
+              <span class="material-icons">{{ item.itemType === 'file' ? getFileTypeIcon(item.itemDetails?.type) :
+                'folder_shared' }}</span>
+            </div>
+            <div class="item-details" [class.clickable]="item.itemType === 'directory'"
+              (click)="item.itemType === 'directory' ? openSharedDirectory(item) : null">
+              <div class="item-name">{{ item.itemName || item.itemDetails?.name }}</div>
+              <div class="item-meta">
+                Shared by {{ item.owner.username }} •
+                {{ item.permissionLevel === 'view' ? 'View only' : 'Can edit' }}
+              </div>
+            </div>
+            <div class="item-actions">
+              <button class="icon-btn" *ngIf="item.itemType === 'file'" (click)="downloadFile(item.itemDetails)"
+                title="Download">
+                <span class="material-icons">download</span>
+              </button>
+              <button class="icon-btn" *ngIf="item.itemType === 'file'"
+                (click)="viewFileDetails({id: item.itemId, name: item.itemName})" title="Xem chi tiết">
+                <span class="material-icons">visibility</span>
+              </button>
+            </div>
+          </div>
+          <!-- Empty state -->
+          <div class="empty-state" *ngIf="sharedWithMe.length === 0">
+            <div class="empty-icon">
+              <span class="material-icons">share</span>
+            </div>
+            <div class="empty-text">
+              <div class="empty-title">No items shared with you</div>
+              <div class="empty-description">Items shared with you will appear here</div>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+      <ng-container *ngIf="isViewingSharedDirectory">
+        <div class="breadcrumbs">
+          <span *ngFor="let crumb of sharedDirectoryBreadcrumbs; let last = last" class="breadcrumb-item">
+            <a *ngIf="!last" (click)="backToSharedWithMe()">{{ crumb.name }}</a>
+            <span *ngIf="last">{{ crumb.name }}</span>
+            <span *ngIf="!last" class="breadcrumb-separator">/</span>
+          </span>
+        </div>
+        <h3>Shared Folder Contents</h3>
+        <div class="items-container">
+          <div class="directory-item" *ngFor="let directory of directoryContents.subdirectories">
+            <div class="item-icon">
+              <span class="material-icons">folder</span>
+            </div>
+            <div class="item-details clickable"
+              (click)="openSharedDirectory({itemType: 'directory', itemId: directory.id, itemName: directory.name, owner: {username: ''}})">
+              <div class="item-name">{{ directory.name }}</div>
+              <div class="item-meta">Folder</div>
+            </div>
+          </div>
+          <div class="file-item" *ngFor="let file of directoryContents.files">
+            <div class="item-icon">
+              <span class="material-icons">{{ getFileTypeIcon(file.type) }}</span>
+            </div>
+            <div class="item-details">
+              <div class="item-name">{{ file.name }}</div>
+              <div class="item-meta">{{ formatFileSize(file.size) }} • {{ file.uploadDate | date }}</div>
+            </div>
+            <div class="item-actions">
+              <button class="icon-btn" (click)="downloadFile(file)" title="Download">
+                <span class="material-icons">download</span>
+              </button>
+              <button class="icon-btn" (click)="viewFileDetails(file)" title="Xem chi tiết">
+                <span class="material-icons">visibility</span>
+              </button>
+            </div>
+          </div>
+          <div class="empty-state"
+            *ngIf="directoryContents.subdirectories.length === 0 && directoryContents.files.length === 0">
+            <div class="empty-icon">
+              <span class="material-icons">folder_off</span>
+            </div>
+            <div class="empty-text">
+              <div class="empty-title">No files or folders</div>
+              <div class="empty-description">This shared folder is empty</div>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-secondary" (click)="backToSharedWithMe()">Back to Shared with Me</button>
+      </ng-container>
+    </div>
+
+    <!-- Shared By Me View -->
+    <div class="shared-browser" *ngIf="viewMode === 'sharedByMe' && !isLoading">
+      <h2>Files & Folders I've Shared</h2>
+
+      <div class="items-container">
+        <div class="shared-item" *ngFor="let item of sharedByMe">
+          <div class="item-icon">
+            <span class="material-icons">{{ item.itemType === 'file' ? getFileTypeIcon(item.itemDetails?.type) :
+              'folder_shared' }}</span>
+          </div>
+          <div class="item-details">
+            <div class="item-name">{{ item.itemName || item.itemDetails?.name }}</div>
+            <div class="item-meta">
+              Shared with {{ item.sharedWith.username }} •
+              {{ item.permissionLevel === 'view' ? 'View only' : 'Can edit' }}
+            </div>
+          </div>
+          <div class="item-actions">
+            <button class="icon-btn" (click)="removeSharing(item)" title="Remove sharing">
+              <span class="material-icons">link_off</span>
+            </button>
+            <button class="icon-btn" *ngIf="item.itemType === 'file'"
+              (click)="viewFileDetails({id: item.itemId, name: item.itemName})" title="Xem chi tiết">
+              <span class="material-icons">visibility</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div class="empty-state" *ngIf="sharedByMe.length === 0">
+          <div class="empty-icon">
+            <span class="material-icons">share</span>
+          </div>
+          <div class="empty-text">
+            <div class="empty-title">You haven't shared any items</div>
+            <div class="empty-description">Items you share will appear here</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Folder Dialog -->
+  <div class="dialog-overlay" *ngIf="showCreateFolderDialog">
+    <div class="dialog">
+      <div class="dialog-header">
+        <h3>Create New Folder</h3>
+        <button class="close-btn" (click)="closeCreateFolderDialog()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="dialog-content">
+        <div class="form-group">
+          <label for="folderName">Folder Name</label>
+          <input type="text" id="folderName" [(ngModel)]="newFolderName" placeholder="Enter folder name">
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn btn-secondary" (click)="closeCreateFolderDialog()">Cancel</button>
+        <button class="btn btn-primary" (click)="createFolder()">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Dialog -->
+  <div class="dialog-overlay" *ngIf="showUploadDialog">
+    <div class="dialog">
+      <div class="dialog-header">
+        <h3>Upload Files</h3>
+        <button class="close-btn" (click)="closeUploadDialog()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="dialog-content">
+        <div class="upload-area">
+          <input type="file" id="fileInput" multiple (change)="selectFiles($event)" style="display:none">
+          <label for="fileInput" class="file-drop-area">
+            <span class="material-icons">cloud_upload</span>
+            <p>Click to select files or drag and drop</p>
+            <p *ngIf="selectedFiles">{{ selectedFiles.length }} files selected</p>
+          </label>
+        </div>
+        <div class="upload-area">
+          <input type="file" id="folderInput" webkitdirectory directory multiple (change)="selectFolderFiles($event)"
+            style="display:none">
+          <label for="folderInput" class="file-drop-area">
+            <span class="material-icons">folder_open</span>
+            <p>Click to select a folder to upload</p>
+            <p *ngIf="selectedFolderFiles">{{ selectedFolderFiles.length }} files in folder selected</p>
+          </label>
+        </div>
+        <div class="upload-progress" *ngIf="currentFileUpload">
+          <div class="progress-bar">
+            <div class="progress-fill" [style.width]="progress + '%'"></div>
+          </div>
+          <div class="progress-text">{{ progress }}%</div>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn btn-secondary" (click)="closeUploadDialog()">Cancel</button>
+        <button class="btn btn-primary" [disabled]="!selectedFiles" (click)="uploadFiles()">Upload</button>
+        <button class="btn btn-primary" [disabled]="!selectedFolderFiles" (click)="uploadFolderFiles()">Upload
+          Folder</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share Dialog -->
+  <div class="dialog-overlay" *ngIf="showShareDialog">
+    <div class="dialog">
+      <div class="dialog-header">
+        <h3>Share {{ selectedItem?.isDirectory ? 'Folder' : 'File' }}: {{ selectedItem?.name }}</h3>
+        <button class="close-btn" (click)="closeShareDialog()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="dialog-content">
+        <div class="form-group">
+          <label for="shareUsername">Username</label>
+          <input type="text" id="shareUsername" [(ngModel)]="shareUsername" placeholder="Enter username to share with">
+        </div>
+        <div class="form-group">
+          <label for="sharePermission">Permission</label>
+          <select id="sharePermission" [(ngModel)]="sharePermission">
+            <option value="view">View only</option>
+            <option value="edit">Can edit</option>
+          </select>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn btn-secondary" (click)="closeShareDialog()">Cancel</button>
+        <button class="btn btn-primary" (click)="shareItem()">Share</button>
+      </div>
+    </div>
+  </div>
+</div>
