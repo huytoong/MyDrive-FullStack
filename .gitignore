@@ -1,0 +1,76 @@
+# === Global OS / Editor ===
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.orig
+*.log
+*.tmp
+*.bak
+.vscode/
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+# === Maven / Java / Spring Boot ===
+**/target/
+*.jar
+*.war
+*.ear
+# Keep wrapper scripts, ignore wrapper downloads cache
+.mvn/wrapper/maven-wrapper.jar
+
+# Lombok config cache (if any)
+
+# === Spring Boot Local Files / Uploads ===
+MyDrive_Backend/demo/upload-dir/
+# If you create a temp folder for files
+**/tmp/
+
+# === Angular / Node ===
+MyDrive_Frontend/node_modules/
+MyDrive_Frontend/dist/
+MyDrive_Frontend/.angular/cache/
+MyDrive_Frontend/.angular/*.json
+
+# === Environment / Secrets ===
+# If using dotenv for frontend or backend
+*.env
+*.env.*
+
+# Ignore real local properties containing secrets (we'll commit sanitized example)
+MyDrive_Backend/demo/src/main/resources/application-local.properties
+
+# === Logs / Coverage / Reports ===
+**/logs/
+**/out/
+coverage/
+clover.xml
+
+# === OS generated ===
+Desktop.ini
+
+# === Misc Large / Generated ===
+*.zip
+*.tar
+*.tar.gz
+*.7z
+
+# === Jupyter/Notebooks Uploaded (optional) ===
+MyDrive_Backend/demo/upload-dir/*.ipynb
+MyDrive_Backend/demo/upload-dir/*.txt
+
+# === Angular build artifacts (alternative path) ===
+MyDrive_Frontend/.output/
+
+# === IDE specific ===
+*.code-workspace
+
+# === TypeScript compile output (if any extra) ===
+**/*.tsbuildinfo
+
+# === Git merge artifacts ===
+*.rej
+*.patch
